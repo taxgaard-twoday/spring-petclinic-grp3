@@ -15,6 +15,7 @@
  */
 package org.springframework.samples.petclinic.vets.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.xml.bind.annotation.XmlElement;
@@ -54,6 +55,14 @@ public class Vet {
         inverseJoinColumns = @JoinColumn(name = "specialty_id"))
     private Set<Specialty> specialties;
 
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "vet_handled_species", joinColumns = @JoinColumn(name = "vet_id"),
+        inverseJoinColumns = @JoinColumn(name = "species_id"))
+    private Set<HandledSpecies> handledSpecies;
+
+    @OneToMany(fetch = FetchType.EAGER, mappedBy = "vet")
+    private Set<VetWorkingHour> workingHours;
+
     protected Set<Specialty> getSpecialtiesInternal() {
         if (this.specialties == null) {
             this.specialties = new HashSet<>();
@@ -74,6 +83,46 @@ public class Vet {
 
     public void addSpecialty(Specialty specialty) {
         getSpecialtiesInternal().add(specialty);
+    }
+
+    protected Set<HandledSpecies> getHandledSpeciesInternal() {
+        if (this.handledSpecies == null) {
+            this.handledSpecies = new HashSet<>();
+        }
+        return this.handledSpecies;
+    }
+
+    @JsonIgnore
+    public List<HandledSpecies> getHandledSpecies() {
+        List<HandledSpecies> sortedSpecies = new ArrayList<>(getHandledSpeciesInternal());
+        sortedSpecies.sort(Comparator.comparing(HandledSpecies::getName));
+        return Collections.unmodifiableList(sortedSpecies);
+    }
+
+    public void addHandledSpecies(HandledSpecies species) {
+        getHandledSpeciesInternal().add(species);
+    }
+
+    protected Set<VetWorkingHour> getWorkingHoursInternal() {
+        if (this.workingHours == null) {
+            this.workingHours = new HashSet<>();
+        }
+        return this.workingHours;
+    }
+
+    @JsonIgnore
+    public List<VetWorkingHour> getWorkingHours() {
+        List<VetWorkingHour> sortedWorkingHours = new ArrayList<>(getWorkingHoursInternal());
+        sortedWorkingHours.sort(
+            Comparator.comparing(VetWorkingHour::getDayOfWeek)
+                .thenComparing(VetWorkingHour::getStartTime)
+        );
+        return Collections.unmodifiableList(sortedWorkingHours);
+    }
+
+    public void addWorkingHour(VetWorkingHour workingHour) {
+        workingHour.setVet(this);
+        getWorkingHoursInternal().add(workingHour);
     }
 
     public Integer getId() {

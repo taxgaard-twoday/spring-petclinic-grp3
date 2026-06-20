@@ -278,3 +278,51 @@ Review `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointm
 ### Future work
 
 The next UI slice can add available-slot loading once that API exists, then wire create and cancel actions with validation messages. A later polish pass can add pet-row appointment links from owner details if the top-nav flow feels too indirect.
+
+## Step 4: Wire booking and cancellation UI
+
+**Author:** main
+
+### Prompt Context
+
+**Verbatim prompt:** option 2
+**Interpretation:** Implement Option 2 from the suggested next iterations: wire the Angular appointment skeleton to the existing create and cancel appointment APIs.
+**Inferred intent:** Ship visible appointment booking and cancellation behavior in the UI before building available-slot selection or real species/working-hours validation.
+
+### What I did
+
+I updated `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.controller.js` to submit bookings to `POST api/visit/owners/{ownerId}/pets/{petId}/appointments`, format the API's `yyyy-MM-dd'T'HH:mm` start value from the date and time fields, cancel appointments through `POST api/visit/owners/{ownerId}/pets/{petId}/appointments/{appointmentId}/cancel`, refresh the appointment list after successful mutations, and show inline success or error messages.
+
+I updated `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.template.html` from a view-only scaffold into a real booking form with required owner, pet, veterinarian, date, and time fields. The appointments table now shows a cancel button only for scheduled appointments that are at least 24 hours away according to the browser clock; the backend remains the authority for the cancellation rule.
+
+I updated `/spring-petclinic-api-gateway/src/main/resources/static/scripts/infrastructure/httpErrorHandlingInterceptor.js` so requests can set `suppressGlobalErrorHandler` and handle errors locally. The global handler also now tolerates backend error payloads that have a `message` but no validation `errors` array.
+
+I ran `.\mvnw.cmd -pl spring-petclinic-api-gateway test`, which passed with 4 tests, 0 failures, 0 errors, and 0 skipped.
+
+### Why
+
+The appointment UI already had the owner/pet/vet context and could list appointments. Wiring create and cancel gives users an end-to-end path through the lifecycle API while leaving available-slot discovery and real compatibility validation for the next backend iteration.
+
+### What worked
+
+The existing visits form pattern mapped cleanly to appointment creation: `ng-submit`, a simple `$http.post`, and a refresh after success. The API's short exception messages can be displayed directly inline once the appointment requests opt out of the global alert handler.
+
+### What didn't work
+
+No implementation errors blocked this step. The test run was verbose and still emitted existing warnings about `logback` ignoring `jmxConfigurator`, Mockito dynamic agent loading, and JVM class-data sharing, but the build ended with `BUILD SUCCESS`.
+
+### What I learned
+
+The existing global HTTP interceptor assumed validation-style error payloads with an `errors` array. Appointment rule failures from Spring's `@ResponseStatus` exceptions are simpler payloads, so locally handled appointment mutations need either an interceptor escape hatch or a more robust global handler.
+
+### What was tricky
+
+The cancellation button needed to avoid advertising an action the backend will reject, but the browser can only approximate the 24-hour window because the server clock is authoritative. The UI now hides cancel for appointments inside the browser-computed window and still surfaces backend errors if the server disagrees.
+
+### What warrants review
+
+Review `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.controller.js` for local date/time formatting and inline error handling, `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.template.html` for the form and cancel-button behavior, and `/spring-petclinic-api-gateway/src/main/resources/static/scripts/infrastructure/httpErrorHandlingInterceptor.js` for the opt-out behavior used by appointment requests.
+
+### Future work
+
+The next backend slice should add available-slot listing and enforce vet working hours plus pet species compatibility through real appointment context validation. After that, the UI can replace manual date/time entry with slot selection and reduce invalid booking attempts.

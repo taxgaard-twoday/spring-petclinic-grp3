@@ -1,51 +1,71 @@
 <h2>Appointments</h2>
 
-<div style="max-width: 42em;">
+<form name="appointmentForm" ng-submit="$ctrl.submit()" style="max-width: 42em;">
+    <div class="alert alert-success" ng-if="$ctrl.successMessage">{{$ctrl.successMessage}}</div>
+    <div class="alert alert-danger" ng-if="$ctrl.errorMessage">{{$ctrl.errorMessage}}</div>
+
     <div class="form-group">
         <label>Owner</label>
         <select class="form-control"
+                name="owner"
                 ng-model="$ctrl.selectedOwner"
                 ng-options="owner as (owner.firstName + ' ' + owner.lastName) for owner in $ctrl.owners track by owner.id"
-                ng-change="$ctrl.ownerChanged()">
+                ng-change="$ctrl.ownerChanged()"
+                required>
             <option value="">Select owner</option>
         </select>
+        <span ng-show="appointmentForm.owner.$error.required" class="help-block">Owner is required.</span>
     </div>
 
     <div class="form-group">
         <label>Pet</label>
         <select class="form-control"
+                name="pet"
                 ng-model="$ctrl.selectedPet"
                 ng-options="pet as (pet.name + ' (' + pet.type.name + ')') for pet in $ctrl.pets track by pet.id"
                 ng-change="$ctrl.petChanged()"
-                ng-disabled="!$ctrl.selectedOwner">
+                ng-disabled="!$ctrl.selectedOwner"
+                required>
             <option value="">Select pet</option>
         </select>
+        <span ng-show="appointmentForm.pet.$error.required" class="help-block">Pet is required.</span>
     </div>
 
     <div class="form-group">
         <label>Veterinarian</label>
         <select class="form-control"
+                name="vet"
                 ng-model="$ctrl.selectedVet"
-                ng-options="vet as (vet.firstName + ' ' + vet.lastName) for vet in $ctrl.vets track by vet.id">
+                ng-options="vet as (vet.firstName + ' ' + vet.lastName) for vet in $ctrl.vets track by vet.id"
+                required>
             <option value="">Select veterinarian</option>
         </select>
+        <span ng-show="appointmentForm.vet.$error.required" class="help-block">Veterinarian is required.</span>
     </div>
 
     <div class="row">
         <div class="col-sm-6">
             <div class="form-group">
                 <label>Date</label>
-                <input type="date" class="form-control" ng-model="$ctrl.date"/>
+                <input type="date" class="form-control" name="date" ng-model="$ctrl.date" required/>
+                <span ng-show="appointmentForm.date.$error.required" class="help-block">Date is required.</span>
             </div>
         </div>
         <div class="col-sm-6">
             <div class="form-group">
                 <label>Time</label>
-                <input type="time" class="form-control" ng-model="$ctrl.time"/>
+                <input type="time" class="form-control" name="time" ng-model="$ctrl.time" required/>
+                <span ng-show="appointmentForm.time.$error.required" class="help-block">Time is required.</span>
             </div>
         </div>
     </div>
-</div>
+
+    <div class="form-group">
+        <button class="btn btn-primary" type="submit" ng-disabled="appointmentForm.$invalid || $ctrl.submitting">
+            Book Appointment
+        </button>
+    </div>
+</form>
 
 <h3>Upcoming Appointments</h3>
 
@@ -56,6 +76,7 @@
         <th>Start</th>
         <th>End</th>
         <th>Status</th>
+        <th></th>
     </tr>
     </thead>
     <tr ng-repeat="appointment in $ctrl.appointments track by appointment.id">
@@ -63,6 +84,14 @@
         <td>{{appointment.start | date:'yyyy MMM dd HH:mm'}}</td>
         <td>{{appointment.end | date:'yyyy MMM dd HH:mm'}}</td>
         <td>{{appointment.status}}</td>
+        <td class="text-end">
+            <button class="btn btn-secondary btn-sm"
+                    type="button"
+                    ng-if="$ctrl.canCancel(appointment)"
+                    ng-click="$ctrl.cancel(appointment)">
+                Cancel
+            </button>
+        </td>
     </tr>
 </table>
 

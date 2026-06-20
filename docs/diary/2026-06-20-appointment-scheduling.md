@@ -326,3 +326,97 @@ Review `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointm
 ### Future work
 
 The next backend slice should add available-slot listing and enforce vet working hours plus pet species compatibility through real appointment context validation. After that, the UI can replace manual date/time entry with slot selection and reduce invalid booking attempts.
+
+## Step 5: Add appointment availability API
+
+**Author:** main
+
+### Prompt Context
+
+**Verbatim prompt:** PLEASE IMPLEMENT THIS PLAN:
+# Plan: Appointment Availability API
+
+## Summary
+Add a pet-scoped availability endpoint in `visits-service` that returns valid 15-minute slots for one selected vet and date. This slice will add the domain calculation and tests now, using the existing appointment context port with fake test data; real HTTP integration to customers/vets remains the next slice.
+
+## Key Changes
+- Add `GET /owners/{ownerId}/pets/{petId}/appointments/available-slots?vetId=3&date=2026-07-01`.
+- Response shape:
+  ```json
+  [
+    { "start": "2026-07-01T09:00", "end": "2026-07-01T09:15" }
+  ]
+  ```
+- Extend `AppointmentContextPort` from validate-only to return booking context:
+  - vet working hours as `dayOfWeek`, `start`, `end`
+  - production accepting adapter returns Monday-Friday `09:00-16:00`
+  - service tests use fakes with narrower/custom vet hours
+- Add `AppointmentService.availableSlots(ownerId, petId, vetId, date)`:
+  - generate 15-minute candidates inside clinic hours and vet working hours
+  - exclude slots before the 24h lead-time cutoff
+  - exclude slots beyond the 3-month horizon
+  - exclude weekends
+  - exclude slots overlapping scheduled appointments for the selected vet
+  - exclude slots overlapping scheduled appointments for the selected pet
+  - return an empty list when no slots are available
+- Reuse the same vet-working-hour check in `create(...)` so manual booking cannot bypass the availability rules.
+- Keep species compatibility and real customer/vet HTTP validation out of this slice.
+
+## Test Plan
+- Add service tests with fixed `Clock`:
+  - returns 15-minute slots for a valid weekday inside vet working hours
+  - excludes slots outside vet working hours
+  - excludes weekends, lead-time violations, and dates beyond 3 months
+  - excludes slots already booked by the same vet
+  - excludes slots already booked by the same pet with another vet
+  - allows slots blocked only by cancelled appointments
+  - rejects manual create when the selected start is outside vet working hours
+- Add `@WebMvcTest` coverage for the available-slots endpoint and JSON shape.
+- Run `.\mvnw.cmd -pl spring-petclinic-visits-service test`.
+
+## Assumptions
+- Availability is requested for a single date; the UI can call this per selected date later.
+- Appointment times remain server-local `LocalDateTime` values using `yyyy-MM-dd'T'HH:mm`.
+- Missing or invalid query params return Spring validation `400 Bad Request`.
+- No API gateway route changes are needed because `/api/visit/**` already forwards to `visits-service`.
+- Update `docs/diary/2026-06-20-appointment-scheduling.md` with a new step after implementation.
+**Interpretation:** Implement the planned `visits-service` availability API using fake booking context data in tests and a permissive production context adapter.
+**Inferred intent:** Move the feature from manual date/time entry toward backend-generated valid slots, while keeping real cross-service customer/vet integration for a separate reviewable slice.
+
+### What I did
+
+I added `/spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/appointment/AppointmentSlot.java` as the domain value returned by availability. I extended `/spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/appointment/AppointmentContextPort.java` with `bookingContext(...)`, `BookingContext`, and `VetWorkingHour` records, then updated `/spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/appointment/AcceptingAppointmentContextPort.java` to return Monday-Friday `09:00-16:00` working hours.
+
+I updated `/spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/appointment/AppointmentService.java` with `availableSlots(ownerId, petId, vetId, date)`. It generates 15-minute clinic candidates for the requested date, filters them by scheduling window, vet working hours, and existing scheduled appointments for both vet and pet, and returns only available slots. I also reused the vet working-hour check in `create(...)` so manual booking cannot bypass the same rule.
+
+I added `GET /owners/{ownerId}/pets/{petId}/appointments/available-slots` to `/spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/web/AppointmentResource.java`, with `vetId` and ISO `date` query parameters and `{ start, end }` response values formatted as `yyyy-MM-dd'T'HH:mm`.
+
+I extended `/spring-petclinic-visits-service/src/test/java/org/springframework/samples/petclinic/visits/appointment/AppointmentServiceTest.java` with fixed-clock availability coverage and fake vet working hours, and extended `/spring-petclinic-visits-service/src/test/java/org/springframework/samples/petclinic/visits/web/AppointmentResourceTest.java` for the endpoint JSON shape. I ran `.\mvnw.cmd -pl spring-petclinic-visits-service test`.
+
+### Why
+
+The UI can already create and cancel appointments, but users still have to guess a valid date/time. This slice adds the backend capability needed to move the UI toward selecting valid slots, and it tightens manual booking by enforcing vet working hours even before real vets-service integration is wired.
+
+### What worked
+
+The existing repository overlap checks were reusable for availability because each generated slot is the same fixed 15-minute interval used by booking. The fake `AppointmentContextPort` in service tests made vet working hours easy to vary without introducing HTTP clients or service discovery into this slice. The final test run passed with `Tests run: 32, Failures: 0, Errors: 0, Skipped: 0` and `BUILD SUCCESS`.
+
+### What didn't work
+
+No implementation errors blocked this step. The test run still emitted existing-style warnings about Mockito dynamic agent loading, `logback` ignoring `jmxConfigurator`, `Visit.date` using deprecated `@Temporal`, and Spring Cloud LoadBalancer's default cache, but none failed the build.
+
+### What I learned
+
+The appointment overlap methods already encode the key "scheduled only" distinction, so cancelled appointments naturally stop blocking availability as long as availability calls those methods with `AppointmentStatus.SCHEDULED`. The context port now needs to become the real customer/vet integration boundary in the next backend slice.
+
+### What was tricky
+
+The main nuance was sharing the scheduling-window logic between "is this candidate available?" and "is this requested booking valid?" without losing the specific error messages expected by create-time validation. Availability can quietly omit invalid candidates, while create still needs to throw short UI-readable errors.
+
+### What warrants review
+
+Review `/spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/appointment/AppointmentService.java` for the slot-generation and vet-working-hour checks, `/spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/appointment/AppointmentContextPort.java` for the temporary booking-context shape, and `/spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/web/AppointmentResource.java` for the public endpoint contract.
+
+### Future work
+
+The next slice should either wire real customer/vet HTTP validation behind `AppointmentContextPort` or update the Angular appointment UI to load available slots for the selected vet/date and book from those slots instead of free-form time entry.

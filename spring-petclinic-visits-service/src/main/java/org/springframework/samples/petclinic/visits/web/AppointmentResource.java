@@ -1,5 +1,6 @@
 package org.springframework.samples.petclinic.visits.web;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -10,7 +11,9 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.samples.petclinic.visits.appointment.AppointmentSlot;
 import org.springframework.samples.petclinic.visits.appointment.AppointmentService;
 import org.springframework.samples.petclinic.visits.model.Appointment;
 import org.springframework.samples.petclinic.visits.model.AppointmentStatus;
@@ -18,10 +21,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 @RestController
+@Validated
 @Timed("petclinic.appointment")
 class AppointmentResource {
 
@@ -40,6 +46,18 @@ class AppointmentResource {
 
         return appointmentService.findForPet(petId).stream()
             .map(AppointmentResponse::from)
+            .toList();
+    }
+
+    @GetMapping("owners/{ownerId}/pets/{petId}/appointments/available-slots")
+    public List<AvailableSlotResponse> availableSlots(
+        @PathVariable("ownerId") @Min(1) int ownerId,
+        @PathVariable("petId") @Min(1) int petId,
+        @RequestParam("vetId") @Min(1) int vetId,
+        @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @NotNull LocalDate date) {
+
+        return appointmentService.availableSlots(ownerId, petId, vetId, date).stream()
+            .map(AvailableSlotResponse::from)
             .toList();
     }
 
@@ -94,6 +112,18 @@ class AppointmentResource {
                 appointment.getEndTime(),
                 appointment.getStatus()
             );
+        }
+    }
+
+    record AvailableSlotResponse(
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
+        LocalDateTime start,
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
+        LocalDateTime end
+    ) {
+
+        static AvailableSlotResponse from(AppointmentSlot slot) {
+            return new AvailableSlotResponse(slot.start(), slot.end());
         }
     }
 }

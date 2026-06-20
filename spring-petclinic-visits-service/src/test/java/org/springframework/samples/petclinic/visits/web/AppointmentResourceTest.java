@@ -1,5 +1,6 @@
 package org.springframework.samples.petclinic.visits.web;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -7,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.samples.petclinic.visits.appointment.AppointmentSlot;
 import org.springframework.samples.petclinic.visits.appointment.AppointmentService;
 import org.springframework.samples.petclinic.visits.model.Appointment;
 import org.springframework.samples.petclinic.visits.model.AppointmentStatus;
@@ -46,6 +48,21 @@ class AppointmentResourceTest {
             .andExpect(jsonPath("$[0].start").value("2026-07-01T09:00"))
             .andExpect(jsonPath("$[0].end").value("2026-07-01T09:15"))
             .andExpect(jsonPath("$[0].status").value("SCHEDULED"));
+    }
+
+    @Test
+    void shouldListAvailableSlotsForPetAndVet() throws Exception {
+        given(appointmentService.availableSlots(6, 7, 3, LocalDate.of(2026, 7, 1))).willReturn(List.of(
+            new AppointmentSlot(LocalDateTime.of(2026, 7, 1, 9, 0), LocalDateTime.of(2026, 7, 1, 9, 15))
+        ));
+
+        mvc.perform(get("/owners/6/pets/7/appointments/available-slots")
+                .param("vetId", "3")
+                .param("date", "2026-07-01")
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].start").value("2026-07-01T09:00"))
+            .andExpect(jsonPath("$[0].end").value("2026-07-01T09:15"));
     }
 
     @Test

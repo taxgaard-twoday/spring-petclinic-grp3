@@ -1,0 +1,70 @@
+<h2>Appointments</h2>
+
+<div style="max-width: 42em;">
+    <div class="form-group">
+        <label>Owner</label>
+        <select class="form-control"
+                ng-model="$ctrl.selectedOwner"
+                ng-options="owner as (owner.firstName + ' ' + owner.lastName) for owner in $ctrl.owners track by owner.id"
+                ng-change="$ctrl.ownerChanged()">
+            <option value="">Select owner</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>Pet</label>
+        <select class="form-control"
+                ng-model="$ctrl.selectedPet"
+                ng-options="pet as (pet.name + ' (' + pet.type.name + ')') for pet in $ctrl.pets track by pet.id"
+                ng-change="$ctrl.petChanged()"
+                ng-disabled="!$ctrl.selectedOwner">
+            <option value="">Select pet</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>Veterinarian</label>
+        <select class="form-control"
+                ng-model="$ctrl.selectedVet"
+                ng-options="vet as (vet.firstName + ' ' + vet.lastName) for vet in $ctrl.vets track by vet.id">
+            <option value="">Select veterinarian</option>
+        </select>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-6">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" class="form-control" ng-model="$ctrl.date"/>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <div class="form-group">
+                <label>Time</label>
+                <input type="time" class="form-control" ng-model="$ctrl.time"/>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h3>Upcoming Appointments</h3>
+
+<table class="table table-striped" ng-if="$ctrl.selectedPet && $ctrl.appointments.length">
+    <thead>
+    <tr>
+        <th>Veterinarian</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Status</th>
+    </tr>
+    </thead>
+    <tr ng-repeat="appointment in $ctrl.appointments track by appointment.id">
+        <td>{{$ctrl.vetName(appointment.vetId)}}</td>
+        <td>{{appointment.start | date:'yyyy MMM dd HH:mm'}}</td>
+        <td>{{appointment.end | date:'yyyy MMM dd HH:mm'}}</td>
+        <td>{{appointment.status}}</td>
+    </tr>
+</table>
+
+<p ng-if="$ctrl.selectedPet && !$ctrl.appointments.length">No upcoming appointments.</p>
+<p ng-if="!$ctrl.selectedPet">Select an owner and pet to view appointments.</p>

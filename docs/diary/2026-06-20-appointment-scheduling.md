@@ -173,3 +173,108 @@ Review the API shape in `/spring-petclinic-visits-service/src/main/java/org/spri
 ### Future work
 
 The next slice should add either available-slot listing or real cross-service validation against `customers-service` pet data and `vets-service` booking profiles. The Angular booking UI should wait until at least availability exists, unless the team wants a UI skeleton first.
+
+## Step 3: Add appointment UI skeleton
+
+**Author:** main
+
+### Prompt Context
+
+**Verbatim prompt:** PLEASE IMPLEMENT THIS PLAN:
+# Plan: Angular Appointment UI Skeleton
+
+## Summary
+Add a top-nav AngularJS appointment screen that lets users choose an owner and pet, see vets, and view the selected pet’s existing appointments. This is a view-only skeleton: no booking submit, no cancellation action, and no available-slot API usage yet.
+
+## Key Changes
+- Add a new AngularJS `appointments` feature module under `spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments`.
+- Register it in `app.js`, add script tags in `index.html`, and add a top-nav item in `scripts/fragments/nav.html`:
+  - state: `appointments`
+  - route: `/appointments`
+  - template: `<appointments></appointments>`
+- Appointment screen behavior:
+  - Load owners from `api/customer/owners`.
+  - Select an owner, then select one of that owner’s pets.
+  - Load vets from `api/vet/vets` for display/selection context.
+  - When a pet is selected, load appointments from `api/visit/owners/{ownerId}/pets/{petId}/appointments`.
+  - Render upcoming appointments with vet id/name when resolvable, start, end, and status.
+- Include booking-form scaffolding only as UI structure:
+  - owner selector, pet selector, vet selector, date/time fields.
+  - No create/cancel POST calls in this slice.
+  - No disabled “Book” or “Cancel” workflow unless it is purely visual and cannot trigger backend mutation.
+- Keep styling consistent with existing AngularJS/Bootstrap screens:
+  - simple `h2` heading, Bootstrap form groups, table layout, and Font Awesome nav icon.
+  - no new frontend framework or build tooling.
+
+## Public Interfaces
+- New browser route:
+  - `#!/appointments`
+- Existing backend APIs consumed:
+  - `GET /api/customer/owners`
+  - `GET /api/vet/vets`
+  - `GET /api/visit/owners/{ownerId}/pets/{petId}/appointments`
+- No backend API changes in this iteration.
+
+## Test Plan
+- Manual browser verification:
+  - App loads without Angular module errors.
+  - Top-nav “Appointments” route opens.
+  - Owner selector populates from existing owners.
+  - Pet selector updates when owner changes.
+  - Vets load and display/select correctly.
+  - Selecting a pet triggers the pet-scoped appointments GET.
+  - Empty appointment responses render cleanly.
+  - Existing owner, visits, and vets screens still work.
+- Run API gateway tests if practical:
+  - `.\mvnw.cmd -pl spring-petclinic-api-gateway test`
+- Run visits-service tests only if the appointment API contract is touched:
+  - `.\mvnw.cmd -pl spring-petclinic-visits-service test`
+
+## Assumptions
+- This slice intentionally does not implement booking, cancellation, or available-slot selection.
+- The top-nav entry is the first UI entry point; pet-row links can be added later.
+- `GET /api/customer/owners` includes pets, matching the existing owner list UI.
+- Appointment status values remain `SCHEDULED` and `CANCELLED`.
+- Update `docs/diary/2026-06-20-appointment-scheduling.md` with a new step after implementation.
+**Interpretation:** Implement the approved AngularJS appointment UI skeleton in the API gateway static application.
+**Inferred intent:** Add a reviewable frontend entry point for appointments that can exercise the new read API without adding booking or cancellation mutations yet.
+
+### What I did
+
+I added a new AngularJS feature module under `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments`: `appointments.js`, `appointments.component.js`, `appointments.controller.js`, and `appointments.template.html`. The route state is `appointments`, the browser route is `/appointments`, and the state renders `<appointments></appointments>`.
+
+I registered the module in `/spring-petclinic-api-gateway/src/main/resources/static/scripts/app.js`, added the script tags to `/spring-petclinic-api-gateway/src/main/resources/static/index.html`, and added an Appointments top-nav item with a Font Awesome calendar icon in `/spring-petclinic-api-gateway/src/main/resources/static/scripts/fragments/nav.html`.
+
+The controller loads owners from `api/customer/owners`, vets from `api/vet/vets`, updates the pet selector when an owner changes, and loads selected-pet appointments from `api/visit/owners/{ownerId}/pets/{petId}/appointments`. The template renders owner, pet, veterinarian, date, and time fields as scaffolding only, then shows an appointments table with resolved vet names when possible. It does not issue create or cancel POST calls.
+
+I ran `.\mvnw.cmd -pl spring-petclinic-api-gateway test` and verified the Surefire reports for `/spring-petclinic-api-gateway/target/surefire-reports`. After replacing the literal form wrapper with a plain container, I reran `.\mvnw.cmd -q -pl spring-petclinic-api-gateway test`, which passed.
+
+### Why
+
+This gives the appointment API an Angular entry point without expanding the backend contract. The view-only screen is enough to validate routing, script registration, owner/pet context selection, vet display context, and the pet-scoped appointment list call before adding availability or mutation workflows.
+
+### What worked
+
+The existing static AngularJS pattern was easy to extend: feature modules live under `/spring-petclinic-api-gateway/src/main/resources/static/scripts`, `index.html` owns script registration, and `ui.router` states hang off the shared `app` parent. The final API gateway test reports showed 4 tests run with 0 failures, 0 errors, and 0 skipped.
+
+### What didn't work
+
+The command `.\mvnw.cmd -pl spring-petclinic-api-gateway test` completed with console output too large for the tool response, which reported `Output exceeded the available model context and was truncated`. I verified the result through the generated Surefire text reports instead: `ApiGatewayApplicationTests`, `VisitsServiceClientIntegrationTest`, and `ApiGatewayControllerTest` all reported 0 failures and 0 errors.
+
+The follow-up command `.\mvnw.cmd -q -pl spring-petclinic-api-gateway test` first failed in the sandbox with `Exception in thread "main" java.net.SocketException: Permission denied: connect` while the Maven wrapper tried to access its distribution. I reran the same command with escalated approval and it passed.
+
+### What I learned
+
+The API gateway frontend does not have a bundling step for these screens, so every new AngularJS file needs explicit script registration in `index.html`. The owner API already provides pets, which keeps the first UI slice independent from any new customer-service call.
+
+### What was tricky
+
+The main design constraint was keeping the screen visibly ready for booking while ensuring it cannot mutate backend state. The date and time inputs are present as scaffolding, but there is no submit action, no Book button, no Cancel button, and no POST call in the controller.
+
+### What warrants review
+
+Review `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.controller.js` for the API calls and state reset behavior, `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.template.html` for the view-only booking scaffold, and the script/nav registration in `/spring-petclinic-api-gateway/src/main/resources/static/index.html`, `/spring-petclinic-api-gateway/src/main/resources/static/scripts/app.js`, and `/spring-petclinic-api-gateway/src/main/resources/static/scripts/fragments/nav.html`.
+
+### Future work
+
+The next UI slice can add available-slot loading once that API exists, then wire create and cancel actions with validation messages. A later polish pass can add pet-row appointment links from owner details if the top-nav flow feels too indirect.

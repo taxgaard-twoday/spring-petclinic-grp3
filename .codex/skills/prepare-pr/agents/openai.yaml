@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prepare PR"
+  short_description: "Sync and verify a branch before PR creation"
+  default_prompt: "Prepare this branch for PR by syncing it with the latest base branch and running verification."

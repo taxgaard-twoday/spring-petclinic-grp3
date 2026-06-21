@@ -420,3 +420,104 @@ Review `/spring-petclinic-visits-service/src/main/java/org/springframework/sampl
 ### Future work
 
 The next slice should either wire real customer/vet HTTP validation behind `AppointmentContextPort` or update the Angular appointment UI to load available slots for the selected vet/date and book from those slots instead of free-form time entry.
+
+## Step 6: Wire appointment UI to available slots
+
+**Author:** main
+
+### Prompt Context
+
+**Verbatim prompt:** PLEASE IMPLEMENT THIS PLAN:
+# Plan: Angular Availability Slot Picker
+
+## Summary
+Update the existing AngularJS appointments screen so users book from backend-generated available slots instead of typing a free-form time. This consumes the already implemented `available-slots` API and keeps the backend contract unchanged.
+
+## Key Changes
+- Start from a new feature branch, after checking `git status --short --branch` and confirming whether any uncommitted work should be carried forward.
+- In the appointments AngularJS controller/template:
+  - keep owner, pet, vet, and date selectors
+  - remove the free-form time input from the booking path
+  - load slots when owner, pet, vet, and date are all selected
+  - call `GET api/visit/owners/{ownerId}/pets/{petId}/appointments/available-slots?vetId={vetId}&date={yyyy-MM-dd}`
+  - render returned slots as a selectable Bootstrap list/table with start and end times
+  - disable booking until a slot is selected
+  - post `{ "vetId": selectedVet.id, "start": selectedSlot.start }` to the existing create endpoint
+- Reset selected slot and available slots whenever owner, pet, vet, or date changes.
+- After successful booking or cancellation, reload both the pet appointments and the available slots for the current vet/date so the screen reflects the freed or consumed slot.
+- Show clear UI states:
+  - loading slots
+  - no slots available
+  - slot-loading error using the existing local error handling
+  - booking/cancellation success and error messages
+- Keep the existing top-nav appointments route and appointment list/cancel behavior.
+
+## Public Interfaces
+- No backend API changes.
+- Browser behavior changes on existing route: `#!/appointments`.
+- Existing API calls used:
+  - `GET /api/customer/owners`
+  - `GET /api/vet/vets`
+  - `GET /api/visit/owners/{ownerId}/pets/{petId}/appointments`
+  - `GET /api/visit/owners/{ownerId}/pets/{petId}/appointments/available-slots?vetId={vetId}&date={yyyy-MM-dd}`
+  - `POST /api/visit/owners/{ownerId}/pets/{petId}/appointments`
+  - `POST /api/visit/owners/{ownerId}/pets/{petId}/appointments/{appointmentId}/cancel`
+
+## Test Plan
+- Run `.\mvnw.cmd -pl spring-petclinic-api-gateway test`.
+- Manual browser verification:
+  - Appointments route loads without Angular errors.
+  - Selecting owner/pet/vet/date triggers the available-slots request.
+  - Empty slot responses render cleanly.
+  - Selecting a slot enables booking.
+  - Booking posts the slot's exact `start` value and refreshes appointments/slots.
+  - Cancelling an eligible appointment refreshes appointments/slots.
+  - Existing owner, visit, vet, and appointment list flows still work.
+
+## Assumptions
+- This slice does not change backend validation or add real species compatibility integration.
+- Slot strings from the backend are reused directly for booking to avoid browser timezone reformatting issues.
+- No new frontend framework, package, or build tooling is introduced.
+- The implementation updates `docs/diary/2026-06-20-appointment-scheduling.md` with a new step after the code changes.
+**Interpretation:** Implement the AngularJS slot-picker iteration on a fresh feature branch, consuming the existing availability API and keeping the backend unchanged.
+**Inferred intent:** Replace free-form appointment time entry with backend-generated choices so users are guided toward valid slots before booking.
+
+### What I did
+
+I created `feature/angular-availability-slot-picker` from `origin/main` after confirming the working tree was clean. The first branch creation attempt without escalation failed because the sandbox could not write `.git/index.lock`; rerunning `git switch -c feature/angular-availability-slot-picker origin/main` with approval succeeded.
+
+I updated `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.controller.js` to track `availableSlots`, `selectedSlot`, `loadingSlots`, and a slot-specific error message. The controller now loads available slots from `api/visit/owners/{ownerId}/pets/{petId}/appointments/available-slots?vetId={vetId}&date={yyyy-MM-dd}` when owner, pet, vet, and date are selected, resets slot state when the booking context changes, and protects against stale slot responses from earlier requests.
+
+I updated `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.template.html` to remove the free-form time input, show loading/empty/error states for availability, render slots in a Bootstrap table, and disable booking until the user selects a slot. Booking now posts the selected slot's `start` value exactly as returned by the backend, and successful booking or cancellation refreshes both the appointment list and available slots.
+
+I ran `.\mvnw.cmd -pl spring-petclinic-api-gateway test`.
+
+### Why
+
+The backend can now calculate valid slots, so the UI should guide users through those choices instead of making them guess a time and learn the rules through validation errors.
+
+### What worked
+
+The existing appointment screen already had the owner, pet, vet, date, booking, cancellation, and local error-handling pieces, so the change could stay focused on replacing the time input with availability loading and selection. The API gateway test run passed with `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0` and `BUILD SUCCESS`.
+
+### What didn't work
+
+The command `git switch -c feature/angular-availability-slot-picker origin/main` first failed with `fatal: Unable to create 'C:/projects/ai-workshop/spring-petclinic-microservices/.git/index.lock': Permission denied`. I reran the same command with escalated approval because creating the feature branch requires writing Git metadata.
+
+Manual browser verification was not run in this turn.
+
+### What I learned
+
+The slot strings can be passed straight back to the create endpoint, which avoids changing the backend contract and avoids formatting the selected appointment time from browser `Date` objects.
+
+### What was tricky
+
+The subtle part was resetting stale slot state without accidentally letting an earlier HTTP response repopulate the table after the user changes owner, pet, vet, or date. A simple request counter keeps only the latest slot response active.
+
+### What warrants review
+
+Review `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.controller.js` for slot request/reset behavior and `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointments/appointments.template.html` for the slot selection UI states.
+
+### Future work
+
+The next backend slice should replace the accepting appointment context with real customer and vet HTTP integration so availability and booking enforce owner-pet existence, vet working hours from `vets-service`, and handled-species compatibility.

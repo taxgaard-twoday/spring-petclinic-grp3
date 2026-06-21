@@ -11,14 +11,18 @@ angular.module('appointments')
         self.vets = [];
         self.pets = [];
         self.appointments = [];
+        self.availableSlots = [];
         self.selectedOwner = null;
         self.selectedPet = null;
         self.selectedVet = null;
+        self.selectedSlot = null;
         self.date = null;
-        self.time = null;
         self.successMessage = null;
         self.errorMessage = null;
+        self.slotErrorMessage = null;
+        self.loadingSlots = false;
         self.submitting = false;
+        var slotRequestId = 0;
 
         $http.get('api/customer/owners').then(function (resp) {
             self.owners = resp.data;
@@ -32,6 +36,7 @@ angular.module('appointments')
             self.selectedPet = null;
             self.appointments = [];
             self.pets = self.selectedOwner && self.selectedOwner.pets ? self.selectedOwner.pets : [];
+            resetSlots();
             clearMessages();
         };
 
@@ -46,13 +51,29 @@ angular.module('appointments')
             $http.get(appointmentsUrl(), locallyHandledRequest).then(function (resp) {
                 self.appointments = resp.data;
             }, showError);
+
+            loadAvailableSlots();
+        };
+
+        self.bookingContextChanged = function () {
+            clearMessages();
+            loadAvailableSlots();
+        };
+
+        self.selectSlot = function (slot) {
+            self.selectedSlot = slot;
+            clearMessages();
+        };
+
+        self.isSelectedSlot = function (slot) {
+            return self.selectedSlot && slot && self.selectedSlot.start === slot.start;
         };
 
         self.submit = function () {
             clearMessages();
 
-            if (!self.selectedOwner || !self.selectedPet || !self.selectedVet || !self.date || !self.time) {
-                self.errorMessage = 'Choose an owner, pet, veterinarian, date, and time';
+            if (!self.selectedOwner || !self.selectedPet || !self.selectedVet || !self.date || !self.selectedSlot) {
+                self.errorMessage = 'Choose an owner, pet, veterinarian, date, and available slot';
                 return;
             }
 
@@ -60,14 +81,13 @@ angular.module('appointments')
 
             var data = {
                 vetId: self.selectedVet.id,
-                start: appointmentStart()
+                start: self.selectedSlot.start
             };
 
             $http.post(appointmentsUrl(), data, locallyHandledRequest).then(function () {
                 self.successMessage = 'Appointment booked';
-                self.date = null;
-                self.time = null;
-                return reloadAppointments();
+                self.selectedSlot = null;
+                return reloadAppointments().then(loadAvailableSlots);
             }, showError).finally(function () {
                 self.submitting = false;
             });
@@ -79,7 +99,7 @@ angular.module('appointments')
             var url = appointmentsUrl() + '/' + appointment.id + '/cancel';
             $http.post(url, null, locallyHandledRequest).then(function () {
                 self.successMessage = 'Appointment cancelled';
-                return reloadAppointments();
+                return reloadAppointments().then(loadAvailableSlots);
             }, showError);
         };
 
@@ -107,12 +127,57 @@ angular.module('appointments')
             });
         }
 
+        function loadAvailableSlots() {
+            resetSlots();
+
+            if (!canLoadSlots()) {
+                return;
+            }
+
+            var currentRequestId = ++slotRequestId;
+            self.loadingSlots = true;
+
+            return $http.get(availableSlotsUrl(), locallyHandledRequest).then(function (resp) {
+                if (currentRequestId === slotRequestId) {
+                    self.availableSlots = resp.data;
+                }
+            }, function (resp) {
+                if (currentRequestId === slotRequestId) {
+                    self.slotErrorMessage = errorMessage(resp);
+                }
+            }).finally(function () {
+                if (currentRequestId === slotRequestId) {
+                    self.loadingSlots = false;
+                }
+            });
+        }
+
+        function resetSlots() {
+            slotRequestId++;
+            self.availableSlots = [];
+            self.selectedSlot = null;
+            self.loadingSlots = false;
+            self.slotErrorMessage = null;
+        }
+
+        function canLoadSlots() {
+            return self.selectedOwner && self.selectedPet && self.selectedVet && self.date;
+        }
+
         function appointmentsUrl() {
             return 'api/visit/owners/' + self.selectedOwner.id + '/pets/' + self.selectedPet.id + '/appointments';
         }
 
-        function appointmentStart() {
-            return $filter('date')(self.date, 'yyyy-MM-dd') + 'T' + $filter('date')(self.time, 'HH:mm');
+        function availableSlotsUrl() {
+            return appointmentsUrl()
+                + '/available-slots?vetId='
+                + encodeURIComponent(self.selectedVet.id)
+                + '&date='
+                + encodeURIComponent(appointmentDate());
+        }
+
+        function appointmentDate() {
+            return $filter('date')(self.date, 'yyyy-MM-dd');
         }
 
         function findVet(vetId) {

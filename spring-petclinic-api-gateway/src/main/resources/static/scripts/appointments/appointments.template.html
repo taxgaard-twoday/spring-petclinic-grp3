@@ -37,31 +37,61 @@
                 name="vet"
                 ng-model="$ctrl.selectedVet"
                 ng-options="vet as (vet.firstName + ' ' + vet.lastName) for vet in $ctrl.vets track by vet.id"
+                ng-change="$ctrl.bookingContextChanged()"
                 required>
             <option value="">Select veterinarian</option>
         </select>
         <span ng-show="appointmentForm.vet.$error.required" class="help-block">Veterinarian is required.</span>
     </div>
 
-    <div class="row">
-        <div class="col-sm-6">
-            <div class="form-group">
-                <label>Date</label>
-                <input type="date" class="form-control" name="date" ng-model="$ctrl.date" required/>
-                <span ng-show="appointmentForm.date.$error.required" class="help-block">Date is required.</span>
-            </div>
-        </div>
-        <div class="col-sm-6">
-            <div class="form-group">
-                <label>Time</label>
-                <input type="time" class="form-control" name="time" ng-model="$ctrl.time" required/>
-                <span ng-show="appointmentForm.time.$error.required" class="help-block">Time is required.</span>
-            </div>
-        </div>
+    <div class="form-group">
+        <label>Date</label>
+        <input type="date"
+               class="form-control"
+               name="date"
+               ng-model="$ctrl.date"
+               ng-change="$ctrl.bookingContextChanged()"
+               required/>
+        <span ng-show="appointmentForm.date.$error.required" class="help-block">Date is required.</span>
     </div>
 
     <div class="form-group">
-        <button class="btn btn-primary" type="submit" ng-disabled="appointmentForm.$invalid || $ctrl.submitting">
+        <label>Available slots</label>
+        <p ng-if="!$ctrl.selectedOwner || !$ctrl.selectedPet || !$ctrl.selectedVet || !$ctrl.date">
+            Select an owner, pet, veterinarian, and date to view available slots.
+        </p>
+        <p ng-if="$ctrl.loadingSlots">Loading available slots...</p>
+        <div class="alert alert-danger" ng-if="$ctrl.slotErrorMessage">{{$ctrl.slotErrorMessage}}</div>
+        <p ng-if="$ctrl.selectedOwner && $ctrl.selectedPet && $ctrl.selectedVet && $ctrl.date && !$ctrl.loadingSlots && !$ctrl.slotErrorMessage && !$ctrl.availableSlots.length">
+            No available slots for this veterinarian and date.
+        </p>
+        <table class="table table-striped table-condensed" ng-if="$ctrl.availableSlots.length">
+            <thead>
+            <tr>
+                <th>Start</th>
+                <th>End</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tr ng-repeat="slot in $ctrl.availableSlots track by slot.start"
+                ng-class="{active: $ctrl.isSelectedSlot(slot)}">
+                <td>{{slot.start | date:'HH:mm'}}</td>
+                <td>{{slot.end | date:'HH:mm'}}</td>
+                <td class="text-end">
+                    <button class="btn btn-default btn-sm"
+                            type="button"
+                            ng-click="$ctrl.selectSlot(slot)">
+                        Select
+                    </button>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="form-group">
+        <button class="btn btn-primary"
+                type="submit"
+                ng-disabled="appointmentForm.$invalid || !$ctrl.selectedSlot || $ctrl.submitting">
             Book Appointment
         </button>
     </div>

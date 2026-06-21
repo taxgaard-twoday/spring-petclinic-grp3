@@ -521,3 +521,76 @@ Review `/spring-petclinic-api-gateway/src/main/resources/static/scripts/appointm
 ### Future work
 
 The next backend slice should replace the accepting appointment context with real customer and vet HTTP integration so availability and booking enforce owner-pet existence, vet working hours from `vets-service`, and handled-species compatibility.
+
+## Step 7: Align customer demo pet species
+
+**Author:** main
+
+### Prompt Context
+
+**Verbatim prompt:** PLEASE IMPLEMENT THIS PLAN:
+# Plan: Align Customer Demo Pet Species
+
+## Summary
+Update customer-service seed pet types and sample pets so demo pets use the same booking species list defined in the PRD and vets-service handled-species data. This improves demonstrability before real cross-service species validation lands.
+
+## Key Changes
+- Create a new feature branch from `origin/main`, after confirming the worktree is clean.
+- Update customer seed data in both HSQLDB and MySQL:
+  - Replace existing pet types with exactly: `cat`, `dog`, `gold fish`, `birds`, `giraf`, `pig`, `small humans`.
+  - Preserve existing stable type IDs where possible and add ID `7` for `small humans`.
+  - Reassign existing sample pets so all seven PRD species are represented.
+- Do not change vets treatment specialties or handled-species seed data.
+- Do not add appointment seed rows in this slice; appointment validity is time-sensitive, so this iteration focuses on species/demo alignment only.
+- Update the diary with a new step after implementation.
+
+## Test Plan
+- Add or update customer-service seed-data coverage to assert `/petTypes` or repository-loaded pet types match the PRD species list exactly.
+- Update existing customer tests affected by type names or IDs, including Basil's expected type if asserted.
+- Run `.\mvnw.cmd -pl spring-petclinic-customers-service test`.
+- Optional smoke check: confirm the Angular owner/pet selectors would now show PRD-aligned species names from `GET /api/customer/owners`.
+
+## Assumptions
+- Use the exact PRD spelling, including `gold fish`, `birds`, `giraf`, and `small humans`.
+- Existing owners and pets remain; only pet type names and selected pet `type_id` values change.
+- This slice does not implement real booking compatibility checks; that remains the next backend integration slice.
+**Interpretation:** Align customer-service demo pet species with the PRD and existing vets handled-species data.
+**Inferred intent:** Make sample owners and pets useful for demonstrating future booking compatibility without changing appointment behavior yet.
+
+### What I did
+
+I created `feature/align-customer-demo-species` from `origin/main` after confirming the worktree was clean. I updated `/spring-petclinic-customers-service/src/main/resources/db/hsqldb/data.sql` and `/spring-petclinic-customers-service/src/main/resources/db/mysql/data.sql` so customer pet types now use the PRD species list: `cat`, `dog`, `gold fish`, `birds`, `giraf`, `pig`, and `small humans`. I preserved existing type IDs for `cat`, `dog`, and type ID `6`, changed type ID `6` from `hamster` to `pig`, and added type ID `7` for `small humans`.
+
+I kept the existing owners and pets, and reassigned pet `Max` to type ID `7` so the demo data includes all seven booking species. Existing pet `Basil` remains type ID `6`, which now represents `pig`.
+
+I added `/spring-petclinic-customers-service/src/test/java/org/springframework/samples/petclinic/customers/model/PetRepositoryTest.java` to verify the HSQL seed data loads the exact PRD species list and that sample pets cover every species. I also updated `/spring-petclinic-customers-service/src/test/java/org/springframework/samples/petclinic/customers/web/PetResourceTest.java` so Basil's JSON response includes type name `pig`.
+
+I ran `.\mvnw.cmd -pl spring-petclinic-customers-service test`.
+
+### Why
+
+The vets-service booking profile already uses the PRD species list, but customer-service demo pets still used the original PetClinic types like `lizard`, `snake`, and `hamster`. Aligning the seed data makes the UI and later cross-service compatibility checks demonstrable with the same vocabulary.
+
+### What worked
+
+The customer seed schema did not need to change; only type names, one new type row, and one sample pet assignment were needed. The customer-service test run passed with `Tests run: 2, Failures: 0, Errors: 0, Skipped: 0` and `BUILD SUCCESS`.
+
+### What didn't work
+
+No implementation errors blocked this step. The test run still produced existing-style warnings about `logback` ignoring `jmxConfigurator`, Mockito dynamic agent loading, and the existing deprecated `@Temporal` usage on `Pet.birthDate`, but none failed the build.
+
+### What I learned
+
+`PetRepository.findPetTypes()` returns pet types ordered by name, so the repository test sorts by ID before asserting the PRD-aligned ID-to-name sequence.
+
+### What was tricky
+
+The important nuance was preserving existing demo identity while still covering every requested species. Reassigning only `Max` to `small humans` kept the owner and pet rows stable and avoided adding artificial owners or pets.
+
+### What warrants review
+
+Review the type ID mapping in both customer seed files and the new repository test to confirm the demo species names intentionally match the PRD spelling, including `giraf` and `small humans`.
+
+### Future work
+
+The next backend slice should replace `AcceptingAppointmentContextPort` with real customer and vet HTTP lookups so booking and availability enforce owner-pet existence, vet working hours, and species compatibility against this aligned demo data.

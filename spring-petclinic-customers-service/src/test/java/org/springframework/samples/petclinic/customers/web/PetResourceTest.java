@@ -51,7 +51,8 @@ class PetResourceTest {
             .andExpect(content().contentType("application/json"))
             .andExpect(jsonPath("$.id").value(2))
             .andExpect(jsonPath("$.name").value("Basil"))
-            .andExpect(jsonPath("$.type.id").value(6));
+            .andExpect(jsonPath("$.type.id").value(6))
+            .andExpect(jsonPath("$.type.name").value("pig"));
     }
 
     private Pet setupPet() {
@@ -66,6 +67,7 @@ class PetResourceTest {
 
         PetType petType = new PetType();
         petType.setId(6);
+        petType.setName("pig");
         pet.setType(petType);
 
         owner.addPet(pet);
